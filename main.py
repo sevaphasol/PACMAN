@@ -319,7 +319,7 @@ class Pacman:
                         (self.pos[1] * self.game.pix_h) + SPACE / 2]
         self.state = None
         self.future_state = None
-        self.v = 7
+        self.v = 5
         self.player_sprites = pygame.sprite.Group()
         self.enemies_sprites = pygame.sprite.Group()
 
@@ -348,6 +348,14 @@ class Pacman:
         self.player_sprites.draw(self.game.screen)
 
     def update(self):
+        if self.future_state:
+            if self.future_state == "up" or self.future_state == "down":
+                if (int(self.pix_pos[0]) - 5) % 20 == 0:
+                    self.state = self.future_state
+            elif self.future_state == "left" or self.future_state == "right":
+                if (int(self.pix_pos[1]) - 5) % 20 == 0:
+                    self.state = self.future_state
+                    self.future_state = None
         if self.state == "left":
             self.player_sprite.image = self.left_image_closed
             self.pix_pos[0] -= self.game.pix_w / FPS * self.v
@@ -360,25 +368,18 @@ class Pacman:
         elif self.state == "down":
             self.player_sprite.image = self.down_image_closed
             self.pix_pos[1] += self.game.pix_h / FPS * self.v
-        if self.future_state == "up" or self.future_state == "down":
-            if (int(self.pix_pos[0]) - 5) % 20 == 0:
-                self.state = self.future_state
-        elif self.future_state == "left" or self.future_state == "right":
-            if (int(self.pix_pos[1]) - 5) % 20 == 0:
-                self.state = self.future_state
-                self.future_state = None
 
     def draw(self):
         self.player_sprite.rect.x, self.player_sprite.rect.y = self.pix_pos
         self.player_sprites.draw(self.game.screen)
 
     def move(self, direction):
-        if direction == "up" or direction == "down" and (int(self.pix_pos[0]) - 5) % 20 == 0:
-            self.state = direction
-        elif direction == "left" or direction == "right" and (int(self.pix_pos[1]) - 5) % 20 == 0:
-            self.state = direction
-        else:
-            if not self.future_state:
+        if self.state != direction:
+            if (direction == "up" or direction == "down") and (int(self.pix_pos[0]) - 5) % 20 == 0:
+                self.state = direction
+            elif (direction == "left" or direction == "right") and (int(self.pix_pos[1]) - 5) % 20 == 0:
+                self.state = direction
+            else:
                 self.future_state = direction
 
 
