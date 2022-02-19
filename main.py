@@ -22,10 +22,34 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.state = "start"
+        self.player_start_pos = None
         self.score = 0
         self.high_score = 0
         self.pix_w, self.pix_h = FON_WIDTH // COLS, FON_HEIGHT // ROWS
+        self.walls = []
+        self.coins = []
+        self.borders = pygame.sprite.Group()
+        self.fon = pygame.transform.scale(load_image("background.png"), (FON_WIDTH, FON_HEIGHT))
+        with open(file="walls.txt", mode='r') as f:
+            for y, string in enumerate(f):
+                for x, value in enumerate(string):
+                    if value == "#":
+                        self.walls.append([x, y])
+                    elif value == "*":
+                        self.coins.append([x, y])
+                    elif value == "P":
+                        self.player_start_pos = [x, y]
         self.pacman = Pacman(self)
+        self.enemies = []
+        for cords in self.walls:
+            x, y = cords
+            # pygame.draw.rect(fon, (255, 255, 255), (x * self.pix_w, y * self.pix_h, self.pix_w, self.pix_h), 2)
+            border = pygame.sprite.Sprite(self.borders)
+            border.image = pygame.transform.scale(load_image("border.png"), (self.pix_w, self.pix_h))
+            border.rect = border.image.get_rect()
+            border.rect.x = x * self.pix_w + SPACE//2
+            border.rect.y = y * self.pix_h + SPACE//2
+        self.borders.draw(self.screen)
 
     def run(self):
         while self.running:
@@ -46,9 +70,11 @@ class Game:
             self.clock.tick(FPS)
         terminate()
 
+    def make_enemies(self):
+        pass
+
     def clear_screen(self):
         self.screen.fill((0, 0, 0))
-        pygame.display.flip()
 
     def start_screen(self):
         # draw
@@ -140,27 +166,35 @@ class Game:
                     self.pacman.move("right")
                 elif event.key == pygame.K_DOWN:
                     self.pacman.move("down")
+                elif event.key == pygame.K_SPACE:
+                    self.pacman.stop()
 
     def game_screen_update(self):
         self.pacman.update()
 
     def game_screen_draw(self):
-        fon = pygame.transform.scale(load_image("background.png"), (FON_WIDTH, FON_HEIGHT))
-
+        self.clear_screen()
         for i in range(COLS):
-            pygame.draw.line(fon, (100, 100, 100), (i * self.pix_w, 0),
+            pygame.draw.line(self.fon, (100, 100, 100), (i * self.pix_w, 0),
                              (i * self.pix_w, HEIGHT))
         for i in range(ROWS):
-            pygame.draw.line(fon, (100, 100, 100), (0, i * self.pix_h),
+            pygame.draw.line(self.fon, (100, 100, 100), (0, i * self.pix_h),
                              (WIDTH, i * self.pix_h))
 
         font = pygame.font.Font(None, 25)
-        self.screen.blit(fon, (SPACE / 2, SPACE / 2))
-        self.screen.blit(font.render(f"SCORE: {self.score}", True, pygame.Color('white')), (25, 8))
+        self.screen.blit(self.fon, (SPACE / 2, SPACE / 2))
+        self.screen.blit(font.render(f"SCORE: {self.pacman.current_score}", True, pygame.Color('white')), (25, 8))
         self.screen.blit(font.render(f"HIGH SCORE: {self.high_score}", True, pygame.Color('white')), (325, 8))
 
+        self.coin_draw()
         self.pacman.draw()
         pygame.display.flip()
+
+    def coin_draw(self):
+        for cords in self.coins:
+            x, y = cords
+            pygame.draw.circle(self.screen, (167, 179, 34),
+                               (x * self.pix_w + 10 + SPACE / 2, y * self.pix_h + 10 + SPACE / 2), 3)
 
     def controls_screen(self):
         self.clear_screen()
@@ -314,12 +348,18 @@ class Game:
 class Pacman:
     def __init__(self, game):
         self.game = game
-        self.pos = [13, 29]
-        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE / 2,
-                        (self.pos[1] * self.game.pix_h) + SPACE / 2]
+        self.pos = self.game.player_start_pos
+        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                        (self.pos[1] * self.game.pix_h) + SPACE // 2]
         self.state = None
+        self.before_state = None
         self.future_state = None
+        self.can_move = True
         self.v = 5
+        self.current_score = 0
+
+        self.start_time = pygame.time.get_ticks() // 100
+
         self.player_sprites = pygame.sprite.Group()
         self.enemies_sprites = pygame.sprite.Group()
 
@@ -339,6 +379,8 @@ class Pacman:
                                                                                            self.game.pix_h))
         self.down_image_closed = pygame.transform.scale(load_image("player2_down.png"), (self.game.pix_w,
                                                                                          self.game.pix_h))
+        self.stop_image_closed = self.left_image_closed
+        self.stop_image_opened = self.left_image_opened
 
         self.player_sprite = pygame.sprite.Sprite(self.player_sprites)
         self.player_sprite_image = load_image("player2_right.png")
@@ -347,40 +389,85 @@ class Pacman:
         self.player_sprite.rect.x, self.player_sprite.rect.y = self.pix_pos
         self.player_sprites.draw(self.game.screen)
 
+        self.directions = {"left": (0, -self.game.pix_w / FPS * self.v,
+                                    [self.left_image_closed, self.left_image_opened]),
+                           "up": (1, -self.game.pix_h / FPS * self.v,
+                                  [self.up_image_closed, self.up_image_opened]),
+                           "right": (0, self.game.pix_w / FPS * self.v,
+                                     [self.right_image_closed, self.right_image_opened]),
+                           "down": (1, self.game.pix_h / FPS * self.v,
+                                    [self.down_image_closed, self.down_image_opened]),
+                           None: (0, 0, [self.stop_image_closed, self.stop_image_opened])}
+
     def update(self):
+        self.pos = [int((int(self.pix_pos[0]) - SPACE // 2) // self.game.pix_w),
+                    int((int(self.pix_pos[1]) - SPACE // 2) // self.game.pix_h)]
+        if self.on_coin():
+            self.take_coin()
+        axis, step, image = self.directions[self.state]
+        self.pix_pos[axis] += step
+        if (pygame.time.get_ticks() // 100 - self.start_time) % 3 == 0:
+            self.player_sprite.image = image[0]
+        else:
+            self.player_sprite.image = image[1]
         if self.future_state:
-            if self.future_state == "up" or self.future_state == "down":
-                if (int(self.pix_pos[0]) - 5) % 20 == 0:
+            if (round(self.pix_pos[0], 2) + SPACE//2 - 10) % self.game.pix_w == 0:
+                if self.future_state == "up" or self.future_state == "down":
                     self.state = self.future_state
-            elif self.future_state == "left" or self.future_state == "right":
-                if (int(self.pix_pos[1]) - 5) % 20 == 0:
+                    self.can_move = self.able_to_move(self.pos, self.state)
+                    if not self.can_move:
+                        self.state = None
+                        self.future_state = None
+
+            if (round(self.pix_pos[1], 2) + SPACE//2 - 10) % self.game.pix_h == 0:
+                if self.future_state == "right" or self.future_state == "left":
                     self.state = self.future_state
-                    self.future_state = None
-        if self.state == "left":
-            self.player_sprite.image = self.left_image_closed
-            self.pix_pos[0] -= self.game.pix_w / FPS * self.v
-        elif self.state == "up":
-            self.player_sprite.image = self.up_image_closed
-            self.pix_pos[1] -= self.game.pix_h / FPS * self.v
-        elif self.state == "right":
-            self.player_sprite.image = self.right_image_closed
-            self.pix_pos[0] += self.game.pix_w / FPS * self.v
-        elif self.state == "down":
-            self.player_sprite.image = self.down_image_closed
-            self.pix_pos[1] += self.game.pix_h / FPS * self.v
+                    self.can_move = self.able_to_move(self.pos, self.state)
+                    if not self.can_move:
+                        self.state = None
+                        self.future_state = None
 
     def draw(self):
         self.player_sprite.rect.x, self.player_sprite.rect.y = self.pix_pos
         self.player_sprites.draw(self.game.screen)
 
+    def on_coin(self):
+        if self.pos in self.game.coins:
+            return True
+        return False
+
+    def take_coin(self):
+        self.game.coins.remove(self.pos)
+        self.current_score += 1
+
     def move(self, direction):
-        if self.state != direction:
-            if (direction == "up" or direction == "down") and (int(self.pix_pos[0]) - 5) % 20 == 0:
-                self.state = direction
-            elif (direction == "left" or direction == "right") and (int(self.pix_pos[1]) - 5) % 20 == 0:
-                self.state = direction
-            else:
-                self.future_state = direction
+        self.future_state = direction
+
+    def able_to_move(self, pos, direction):
+        x, y = pos
+        hits = pygame.sprite.spritecollide(self.player_sprite, self.game.borders, False)
+        if hits:
+            if direction == "left":
+                x += 1
+            elif direction == "up":
+                y += 1
+            self.pix_pos = [(x * self.game.pix_w) + SPACE // 2,
+                            (y * self.game.pix_h) + SPACE // 2]
+            return False
+        return True
+
+    def stop(self):
+        if self.state:
+            self.before_state = self.state
+            self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                            (self.pos[1] * self.game.pix_h) + SPACE // 2]
+            self.state = False
+        else:
+            self.state = self.before_state
+
+
+    class Ghost:
+        pass
 
 
 if __name__ == "__main__":
