@@ -1,6 +1,7 @@
 import pygame.font
 
 from default_commands import *
+from random import choice
 
 FPS = 60
 WIDTH = 610
@@ -28,7 +29,6 @@ class Pacman:
         self.start_time = pygame.time.get_ticks() // 100
 
         self.player_sprites = pygame.sprite.Group()
-        self.enemies_sprites = pygame.sprite.Group()
 
         self.left_image_opened = pygame.transform.scale(load_image("player1_left.png"), (self.game.pix_w,
                                                                                          self.game.pix_h))
@@ -107,7 +107,7 @@ class Pacman:
         self.game.coins.remove(self.pos)
         self.current_score += 1
 
-    def move(self, direction):
+    def change_direction(self, direction):
         self.future_state = direction
 
     def able_to_move(self, pos, direction):
@@ -140,22 +140,214 @@ class Ghost:
         self.pos = pos
         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
-        self.ghost_sprites = pygame.sprite.Group()
-        self.ghost_sprite = pygame.sprite.Sprite(self.ghost_sprites)
+        self.state = None
+        self.v = num + 1
+        self.target = None
+        self.stage = 1
+        self.paths = [{"right": [13, 13], "up": [13, 11], "left": [12, 11]},
+                      {"left": [14, 13], "up": [14, 11], "right": [15, 11]},
+                      {"right": [13, 15], "up": [13, 11], "left": [12, 11]},
+                      {"left": [14, 15], "up": [14, 11], "right": [15, 11]}]
+        self.path = self.paths[num - 1]
+        self.directions = {"left": (0, -self.game.pix_w / FPS * self.v,),
+                           "up": (1, -self.game.pix_h / FPS * self.v,),
+                           "right": (0, self.game.pix_w / FPS * self.v,),
+                           "down": (1, self.game.pix_h / FPS * self.v,),
+                           None: (0, 0)}
+        self.vector_directions = {(-1, 0): "left", (0, 1): "up", (1, 0): "right", (0, -1): "down"}
+        self.home_cords = [[11, 13], [12, 13], [13, 13], [14, 13], [15, 13], [16, 13], [11, 14], [12, 14], [13, 14],
+                           [14, 14], [15, 14], [16, 14], [11, 15], [12, 15], [13, 15], [14, 15], [15, 15], [16, 15],
+                           [13, 12], [14, 12], [12, 11], [13, 11], [14, 11], [15, 11], [13, 10], [11, 11], [12, 10]]
+        self.ghost_sprite = pygame.sprite.Sprite(self.game.ghost_sprites)
         ghost_sprite_image = load_image(f"ghost{num}.png")
         ghost_sprite_width, ghost_sprite_height = [i * 0.04 for i in ghost_sprite_image.get_size()]
         self.ghost_sprite.image = pygame.transform.scale(ghost_sprite_image, (ghost_sprite_width,
                                                                               ghost_sprite_height))
         self.ghost_sprite.rect = self.ghost_sprite.image.get_rect()
         self.ghost_sprite.rect.x, self.ghost_sprite.rect.y = self.pix_pos
-        self.ghost_sprites.draw(self.game.screen)
+        self.game.ghost_sprites.draw(self.game.screen)
 
     def update(self):
+        if self.stage != 4:
+            self.go_out_of_the_home()
+        else:
+            if not self.able_to_move(self.pos, self.state):
+                self.change_direction()
+        axis, step = self.directions[self.state]
+        self.pix_pos[axis] += step
+        self.pos = [int((int(self.pix_pos[0]) - SPACE // 2) // self.game.pix_w),
+                    int((int(self.pix_pos[1]) - SPACE // 2) // self.game.pix_h)]
         self.draw()
 
     def draw(self):
         self.ghost_sprite.rect.x, self.ghost_sprite.rect.y = self.pix_pos
-        self.ghost_sprites.draw(self.game.screen)
+        self.game.ghost_sprites.draw(self.game.screen)
+
+    def go_out_of_the_home(self):
+        time = pygame.time.get_ticks() // 1000 - self.game.start_time
+        if self.num == 1 and time > 1:
+            if self.stage == 1:
+                if self.pos != [13, 13]:
+                    self.state = "right"
+                else:
+                    self.stage = 2
+            elif self.stage == 2:
+                if self.pos != [13, 10]:
+                    self.state = "up"
+                else:
+                    if (round(self.pix_pos[1], 2) + SPACE // 2 - 10) % self.game.pix_h == 0:
+                        self.stage = 3
+            elif self.stage == 3:
+                if self.pos != [12, 10]:
+                    self.state = "left"
+                else:
+                    if (round(self.pix_pos[0], 2) + SPACE // 2 - 10) % self.game.pix_w == 0:
+                        self.stage = 4
+                        self.state = None
+                        self.pos = [12, 11]
+                        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                                        (self.pos[1] * self.game.pix_h) + SPACE // 2]
+
+        elif self.num == 2 and time > 3:
+            if self.stage == 1:
+                if self.pos != [13, 13]:
+                    self.state = "left"
+                else:
+                    self.stage = 2
+            elif self.stage == 2:
+                if self.pos != [13, 11]:
+                    self.state = "up"
+                else:
+                    if (round(self.pix_pos[1], 2) + SPACE // 2 - 10) % self.game.pix_h == 0:
+                        self.stage = 3
+            elif self.stage == 3:
+                if self.pos != [15, 10]:
+                    self.state = "right"
+                else:
+                    if (round(self.pix_pos[0], 2) + SPACE // 2 - 10) % self.game.pix_w == 0:
+                        self.stage = 4
+                        self.state = None
+                        self.pos = [15, 11]
+                        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                                        (self.pos[1] * self.game.pix_h) + SPACE // 2]
+
+        elif self.num == 3 and time > 7:
+            if self.stage == 1:
+                if self.pos != [13, 15]:
+                    self.state = "right"
+                else:
+                    self.stage = 2
+            elif self.stage == 2:
+                if self.pos != [13, 11]:
+                    self.state = "up"
+                else:
+                    if (round(self.pix_pos[1], 2) + SPACE // 2 - 10) % self.game.pix_h == 0:
+                        self.stage = 3
+            elif self.stage == 3:
+                if self.pos != [11, 10]:
+                    self.state = "left"
+                else:
+                    if (round(self.pix_pos[0], 2) + SPACE // 2 - 10) % self.game.pix_w == 0:
+                        self.stage = 4
+                        self.state = None
+                        self.pos = [12, 11]
+                        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                                        (self.pos[1] * self.game.pix_h) + SPACE // 2]
+
+        elif self.num == 4 and time > 11:
+            if self.stage == 1:
+                if self.pos != [13, 15]:
+                    self.state = "left"
+                else:
+                    self.stage = 2
+            elif self.stage == 2:
+                if self.pos != [13, 10]:
+                    self.state = "up"
+                else:
+                    if (round(self.pix_pos[1], 2) + SPACE // 2 - 10) % self.game.pix_h == 0:
+                        self.stage = 3
+            elif self.stage == 3:
+                if self.pos != [14, 10]:
+                    self.state = "right"
+                else:
+                    if (round(self.pix_pos[0], 2) + SPACE // 2 - 10) % self.game.pix_w == 0:
+                        self.stage = 4
+                        self.state = None
+                        self.pos = [15, 11]
+                        self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
+                                        (self.pos[1] * self.game.pix_h) + SPACE // 2]
+                        self.game.walls.extend(self.game.doors)
+                        border = pygame.sprite.Sprite(self.game.borders)
+                        border.image = pygame.transform.scale(load_image("border2.png"), (self.game.pix_w,
+                                                                                          self.game.pix_h))
+                        border.rect = border.image.get_rect()
+                        border.rect.x = 12 * self.game.pix_w + SPACE // 2
+                        border.rect.y = 11 * self.game.pix_h + SPACE // 2
+                        self.game.borders.draw(self.game.fon)
+
+    def able_to_move(self, pos, direction):
+        if not self.state:
+            return False
+        x, y = pos
+        hits = pygame.sprite.spritecollide(self.ghost_sprite, self.game.borders, False)
+        if hits:
+            if direction == "left":
+                x += 1
+            elif direction == "up":
+                y += 1
+            self.pix_pos = [(x * self.game.pix_w) + SPACE // 2,
+                            (y * self.game.pix_h) + SPACE // 2]
+            return False
+        return True
+
+    def change_direction(self):
+        self.state = choice(["left", "up", "right", "down"])
+
+    def set_target(self):
+        return self.game.pacman.pos
+
+    def get_path_direction(self, target):
+        next_cell = self.find_next_cell_in_path(target)
+        x = next_cell[0] - self.pos[0]
+        y = next_cell[1] - self.pos[1]
+        return self.vector_directions[(x, y)]
+
+    def find_next_cell_in_path(self, target):
+        path = self.bfs([int(self.pos[0]), int(self.pos[1])], [
+                        int(target[0]), int(target[1])])
+        return path[1]
+
+    def bfs(self, start, target):
+        grid = [[0 for _ in range(28)] for _ in range(30)]
+        for cell in self.game.walls:
+            if cell[0] < 28 and cell[1] < 30:
+                grid[int(cell[1])][int(cell[0])] = 1
+        queue = [start]
+        path = []
+        visited = []
+        while queue:
+            current = queue[0]
+            queue.remove(queue[0])
+            visited.append(current)
+            if current == target:
+                break
+            else:
+                neighbours = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+                for neighbour in neighbours:
+                    if len(grid[0]) > neighbour[0] + current[0] >= 0:
+                        if len(grid) > neighbour[1] + current[1] >= 0:
+                            next_cell = [neighbour[0] + current[0], neighbour[1] + current[1]]
+                            if next_cell not in visited:
+                                if grid[next_cell[1]][next_cell[0]] != 1:
+                                    queue.append(next_cell)
+                                    path.append({"Current": current, "Next": next_cell})
+        shortest = [target]
+        while target != start:
+            for step in path:
+                if step["Next"] == target:
+                    target = step["Current"]
+                    shortest.insert(0, step["Current"])
+        return shortest
 
 
 class Game:
@@ -165,6 +357,7 @@ class Game:
         pygame.display.set_icon(pygame.image.load("data/icon.png"))
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
+        self.start_time = None
         self.running = True
         self.state = "start"
         self.player_start_pos = None
@@ -173,6 +366,7 @@ class Game:
         self.high_score = 0
         self.pix_w, self.pix_h = FON_WIDTH // COLS, FON_HEIGHT // ROWS
         self.walls = []
+        self.doors = []
         self.coins = []
         self.borders = pygame.sprite.Group()
         self.fon = pygame.transform.scale(load_image("background.png"), (FON_WIDTH, FON_HEIGHT))
@@ -187,8 +381,12 @@ class Game:
                         self.player_start_pos = [x, y]
                     elif value in ["1", "2", "3", "4"]:
                         self.ghost_poses.append([x, y])
+                    elif value == "D":
+                        pygame.draw.rect(self.fon, (0, 0, 0), (x*self.pix_w, y*self.pix_h, self.pix_w, self.pix_h))
+                        self.doors.append([x, y])
         self.pacman = Pacman(self)
         self.ghosts = []
+        self.ghost_sprites = pygame.sprite.Group()
         self.make_ghosts()
         for cords in self.walls:
             x, y = cords
@@ -205,6 +403,8 @@ class Game:
             if self.state == "start":
                 self.start_screen()
             elif self.state == "game":
+                if not self.start_time:
+                    self.start_time = pygame.time.get_ticks() // 1000
                 self.game_screen_events()
                 self.game_screen_update()
                 self.game_screen_draw()
@@ -309,13 +509,13 @@ class Game:
                 if event.key == pygame.K_ESCAPE:
                     self.state = "pause"
                 elif event.key == pygame.K_LEFT:
-                    self.pacman.move("left")
+                    self.pacman.change_direction("left")
                 elif event.key == pygame.K_UP:
-                    self.pacman.move("up")
+                    self.pacman.change_direction("up")
                 elif event.key == pygame.K_RIGHT:
-                    self.pacman.move("right")
+                    self.pacman.change_direction("right")
                 elif event.key == pygame.K_DOWN:
-                    self.pacman.move("down")
+                    self.pacman.change_direction("down")
                 elif event.key == pygame.K_SPACE:
                     self.pacman.stop()
 
