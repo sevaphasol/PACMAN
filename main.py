@@ -22,10 +22,10 @@ class Pacman:
         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
         self.state = None
+        self.v = 5
         self.before_state = None
         self.future_state = None
         self.can_move = True
-        self.v = 5
         self.current_score = 0
 
         self.start_time = pygame.time.get_ticks() // 100
@@ -125,6 +125,17 @@ class Pacman:
                             (y * self.game.pix_h) + SPACE // 2]
             return False
         return True
+
+    def update_directions(self):
+        self.directions = {"left": (0, -self.game.pix_w / FPS * self.v,
+                                    [self.left_image_closed, self.left_image_opened]),
+                           "up": (1, -self.game.pix_h / FPS * self.v,
+                                  [self.up_image_closed, self.up_image_opened]),
+                           "right": (0, self.game.pix_w / FPS * self.v,
+                                     [self.right_image_closed, self.right_image_opened]),
+                           "down": (1, self.game.pix_h / FPS * self.v,
+                                    [self.down_image_closed, self.down_image_opened]),
+                           None: (0, 0, [self.stop_image_closed, self.stop_image_opened])}
 
 
 class Ghost:
@@ -315,6 +326,7 @@ class Ghost:
         self.game.pacman.current_score = 0
         self.game.score = 0
         self.game.pacman.state = None
+        self.game.game_state = "lost"
         self.game.state = "game_over"
         self.game.start_time = 100000000000000000
 
@@ -328,6 +340,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.start_time = None
         self.running = True
+        self.game_state = "playing"
         self.state = "start"
         self.before_state = "start"
         self.exception = False
@@ -353,7 +366,8 @@ class Game:
         self.taken_coins = []
         self.borders = pygame.sprite.Group()
         self.fon = pygame.transform.scale(load_image("background.png"), (FON_WIDTH, FON_HEIGHT))
-        self.game_over_fon = load_image("game_over.png")
+        self.game_over_lost_fon = load_image("game_over.png")
+        self.game_over_won_fon = load_image("win.png")
         with open(file="walls.txt", mode='r') as f:
             for y, string in enumerate(f):
                 for x, value in enumerate(string):
@@ -485,6 +499,8 @@ class Game:
                         self.con.commit()
                         self.before_state = self.state
                         self.exception = False
+                        self.v = 5
+                        self.game_state = "playing"
                         self.state = "game"
                         return
                     elif is_in(cords, controls_sprite.rect):
@@ -510,6 +526,7 @@ class Game:
                         self.con.commit()
                         self.before_state = self.state
                         self.exception = False
+                        self.v = 5
                         self.state = "game"
                         return
                 pygame.display.flip()
@@ -532,6 +549,9 @@ class Game:
                     self.pacman.change_direction("down")
 
     def game_screen_update(self):
+        if not self.coins:
+            self.state = "game_over"
+            self.game_state = "won"
         self.pacman.update()
         for ghost in self.ghosts:
             ghost.update()
@@ -578,6 +598,15 @@ class Game:
         back_btn_sprite.rect.x = 50
         back_btn_sprite.rect.y = 40
 
+        controls_text_sprite = pygame.sprite.Sprite(all_sprites)
+        controls_text_image = load_image("controls_text.png")
+        controls_text_sprite_width, controls_text_sprite_height = [i * 0.5 for i in controls_text_image.get_size()]
+        controls_text_sprite.image = pygame.transform.scale(controls_text_image, (controls_text_sprite_width,
+                                                                                  controls_text_sprite_height))
+        controls_text_sprite.rect = controls_text_sprite.image.get_rect()
+        controls_text_sprite.rect.x = 150
+        controls_text_sprite.rect.y = 150
+
         all_sprites.draw(self.screen)
         pygame.display.flip()
 
@@ -610,6 +639,15 @@ class Game:
         back_btn_sprite.rect = back_btn_sprite.image.get_rect()
         back_btn_sprite.rect.x = 50
         back_btn_sprite.rect.y = 40
+
+        credit_text_sprite = pygame.sprite.Sprite(all_sprites)
+        credit_text_image = load_image("credit_text.png")
+        credit_text_sprite_width, credits_text_sprite_height = [i * 0.5 for i in credit_text_image.get_size()]
+        credit_text_sprite.image = pygame.transform.scale(credit_text_image, (credit_text_sprite_width,
+                                                                                credits_text_sprite_height))
+        credit_text_sprite.rect = credit_text_sprite.image.get_rect()
+        credit_text_sprite.rect.x = 150
+        credit_text_sprite.rect.y = 150
 
         all_sprites.draw(self.screen)
         pygame.display.flip()
@@ -732,6 +770,42 @@ class Game:
         back_btn_sprite.rect.x = 50
         back_btn_sprite.rect.y = 40
 
+        speed_text_sprite = pygame.sprite.Sprite(all_sprites)
+        speed_text_image = load_image("speed_text.png")
+        speed_text_sprite_width, speed_text_sprite_height = [i * 1 for i in speed_text_image.get_size()]
+        speed_text_sprite.image = pygame.transform.scale(speed_text_image, (speed_text_sprite_width,
+                                                                            speed_text_sprite_height))
+        speed_text_sprite.rect = speed_text_sprite.image.get_rect()
+        speed_text_sprite.rect.x = 220
+        speed_text_sprite.rect.y = 220
+
+        speed1_sprite = pygame.sprite.Sprite(all_sprites)
+        speed1_image = load_image("speed1.png")
+        speed1_sprite_width, speed1_sprite_height = [i * 0.5 for i in speed1_image.get_size()]
+        speed1_sprite.image = pygame.transform.scale(speed1_image, (speed1_sprite_width,
+                                                                    speed1_sprite_height))
+        speed1_sprite.rect = speed1_sprite.image.get_rect()
+        speed1_sprite.rect.x = 100
+        speed1_sprite.rect.y = 300
+
+        speed2_sprite = pygame.sprite.Sprite(all_sprites)
+        speed2_image = load_image("speed2.png")
+        speed2_sprite_width, speed2_sprite_height = [i * 0.5 for i in speed2_image.get_size()]
+        speed2_sprite.image = pygame.transform.scale(speed2_image, (speed2_sprite_width,
+                                                                    speed2_sprite_height))
+        speed2_sprite.rect = speed2_sprite.image.get_rect()
+        speed2_sprite.rect.x = 250
+        speed2_sprite.rect.y = 300
+
+        speed3_sprite = pygame.sprite.Sprite(all_sprites)
+        speed3_image = load_image("speed3.png")
+        speed3_sprite_width, speed3_sprite_height = [i * 0.5 for i in speed3_image.get_size()]
+        speed3_sprite.image = pygame.transform.scale(speed3_image, (speed3_sprite_width,
+                                                                    speed3_sprite_height))
+        speed3_sprite.rect = speed3_sprite.image.get_rect()
+        speed3_sprite.rect.x = 400
+        speed3_sprite.rect.y = 300
+
         all_sprites.draw(self.screen)
         pygame.display.flip()
 
@@ -745,6 +819,18 @@ class Game:
                         self.before_state = self.state
                         self.state = "pause"
                         return
+                    elif is_in(cords, speed1_sprite.rect):
+                        self.pacman.v = 1
+                        self.pacman.update_directions()
+                        return
+                    elif is_in(cords, speed2_sprite.rect):
+                        self.pacman.v = 5
+                        self.pacman.update_directions()
+                        return
+                    elif is_in(cords, speed3_sprite.rect):
+                        self.pacman.v = 10
+                        self.pacman.update_directions()
+                        return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.before_state = self.state
@@ -754,7 +840,10 @@ class Game:
     def game_over_screen(self):
         self.clear_screen()
 
-        self.screen.blit(self.game_over_fon, (0, 0))
+        if self.game_state == "lost":
+            self.screen.blit(self.game_over_lost_fon, (0, 0))
+        elif self.game_state == "won":
+            self.screen.blit(self.game_over_won_fon, (0, 0))
         pygame.display.flip()
         while True:
             for event in pygame.event.get():
