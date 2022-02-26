@@ -80,7 +80,7 @@ class Pacman:
         else:
             self.player_sprite.image = image[1]
         if self.future_state:
-            if (round(self.pix_pos[0], 2) + SPACE//2 - 10) % self.game.pix_w == 0:
+            if (round(self.pix_pos[0], 2) + SPACE // 2 - 10) % self.game.pix_w == 0:
                 if self.future_state == "up" or self.future_state == "down":
                     self.state = self.future_state
                     self.can_move = self.able_to_move(self.pos, self.state)
@@ -88,7 +88,7 @@ class Pacman:
                         self.state = None
                         self.future_state = None
 
-            if (round(self.pix_pos[1], 2) + SPACE//2 - 10) % self.game.pix_h == 0:
+            if (round(self.pix_pos[1], 2) + SPACE // 2 - 10) % self.game.pix_h == 0:
                 if self.future_state == "right" or self.future_state == "left":
                     self.state = self.future_state
                     self.can_move = self.able_to_move(self.pos, self.state)
@@ -380,7 +380,7 @@ class Game:
                     elif value in ["1", "2", "3", "4"]:
                         self.ghost_poses.append([x, y])
                     elif value == "D":
-                        pygame.draw.rect(self.fon, (0, 0, 0), (x*self.pix_w, y*self.pix_h, self.pix_w, self.pix_h))
+                        pygame.draw.rect(self.fon, (0, 0, 0), (x * self.pix_w, y * self.pix_h, self.pix_w, self.pix_h))
                         self.doors.append([x, y])
         self.pacman = Pacman(self)
         self.ghosts = []
@@ -391,8 +391,8 @@ class Game:
             border = pygame.sprite.Sprite(self.borders)
             border.image = pygame.transform.scale(load_image("border.png"), (self.pix_w, self.pix_h))
             border.rect = border.image.get_rect()
-            border.rect.x = x * self.pix_w + SPACE//2
-            border.rect.y = y * self.pix_h + SPACE//2
+            border.rect.x = x * self.pix_w + SPACE // 2
+            border.rect.y = y * self.pix_h + SPACE // 2
         self.borders.draw(self.screen)
 
     def run(self):
@@ -499,7 +499,6 @@ class Game:
                         self.con.commit()
                         self.before_state = self.state
                         self.exception = False
-                        self.v = 5
                         self.game_state = "playing"
                         self.state = "game"
                         return
@@ -526,7 +525,6 @@ class Game:
                         self.con.commit()
                         self.before_state = self.state
                         self.exception = False
-                        self.v = 5
                         self.state = "game"
                         return
                 pygame.display.flip()
@@ -644,7 +642,7 @@ class Game:
         credit_text_image = load_image("credit_text.png")
         credit_text_sprite_width, credits_text_sprite_height = [i * 0.5 for i in credit_text_image.get_size()]
         credit_text_sprite.image = pygame.transform.scale(credit_text_image, (credit_text_sprite_width,
-                                                                                credits_text_sprite_height))
+                                                                              credits_text_sprite_height))
         credit_text_sprite.rect = credit_text_sprite.image.get_rect()
         credit_text_sprite.rect.x = 150
         credit_text_sprite.rect.y = 150
