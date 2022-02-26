@@ -2,6 +2,8 @@ import pygame.font
 
 from default_commands import *
 from random import choice
+import sqlite3
+from time import time
 
 FPS = 60
 WIDTH = 610
@@ -105,6 +107,7 @@ class Pacman:
 
     def take_coin(self):
         self.game.coins.remove(self.pos)
+        self.game.taken_coins.append(self.pos)
         self.current_score += 1
 
     def change_direction(self, direction):
@@ -123,15 +126,6 @@ class Pacman:
             return False
         return True
 
-    def stop(self):
-        if self.state:
-            self.before_state = self.state
-            self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
-                            (self.pos[1] * self.game.pix_h) + SPACE // 2]
-            self.state = False
-        else:
-            self.state = self.before_state
-
 
 class Ghost:
     def __init__(self, game, pos, num):
@@ -142,22 +136,12 @@ class Ghost:
                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
         self.state = None
         self.v = num + 1
-        self.target = None
         self.stage = 1
-        self.paths = [{"right": [13, 13], "up": [13, 11], "left": [12, 11]},
-                      {"left": [14, 13], "up": [14, 11], "right": [15, 11]},
-                      {"right": [13, 15], "up": [13, 11], "left": [12, 11]},
-                      {"left": [14, 15], "up": [14, 11], "right": [15, 11]}]
-        self.path = self.paths[num - 1]
         self.directions = {"left": (0, -self.game.pix_w / FPS * self.v,),
                            "up": (1, -self.game.pix_h / FPS * self.v,),
                            "right": (0, self.game.pix_w / FPS * self.v,),
                            "down": (1, self.game.pix_h / FPS * self.v,),
                            None: (0, 0)}
-        self.vector_directions = {(-1, 0): "left", (0, 1): "up", (1, 0): "right", (0, -1): "down"}
-        self.home_cords = [[11, 13], [12, 13], [13, 13], [14, 13], [15, 13], [16, 13], [11, 14], [12, 14], [13, 14],
-                           [14, 14], [15, 14], [16, 14], [11, 15], [12, 15], [13, 15], [14, 15], [15, 15], [16, 15],
-                           [13, 12], [14, 12], [12, 11], [13, 11], [14, 11], [15, 11], [13, 10], [11, 11], [12, 10]]
         self.ghost_sprite = pygame.sprite.Sprite(self.game.ghost_sprites)
         ghost_sprite_image = load_image(f"ghost{num}.png")
         ghost_sprite_width, ghost_sprite_height = [i * 0.04 for i in ghost_sprite_image.get_size()]
@@ -168,6 +152,8 @@ class Ghost:
         self.game.ghost_sprites.draw(self.game.screen)
 
     def update(self):
+        if pygame.sprite.spritecollide(self.ghost_sprite, self.game.pacman.player_sprites, False):
+            self.game_over()
         if self.stage != 4:
             self.go_out_of_the_home()
         else:
@@ -184,8 +170,8 @@ class Ghost:
         self.game.ghost_sprites.draw(self.game.screen)
 
     def go_out_of_the_home(self):
-        time = pygame.time.get_ticks() // 1000 - self.game.start_time
-        if self.num == 1 and time > 1:
+        time_ = int(time()) - self.game.start_time
+        if self.num == 1 and time_ > 1:
             if self.stage == 1:
                 if self.pos != [13, 13]:
                     self.state = "right"
@@ -208,7 +194,7 @@ class Ghost:
                         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
 
-        elif self.num == 2 and time > 3:
+        elif self.num == 2 and time_ > 3:
             if self.stage == 1:
                 if self.pos != [13, 13]:
                     self.state = "left"
@@ -231,7 +217,7 @@ class Ghost:
                         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
 
-        elif self.num == 3 and time > 7:
+        elif self.num == 3 and time_ > 7:
             if self.stage == 1:
                 if self.pos != [13, 15]:
                     self.state = "right"
@@ -254,7 +240,7 @@ class Ghost:
                         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
 
-        elif self.num == 4 and time > 11:
+        elif self.num == 4 and time_ > 11:
             if self.stage == 1:
                 if self.pos != [13, 15]:
                     self.state = "left"
@@ -276,14 +262,23 @@ class Ghost:
                         self.pos = [15, 11]
                         self.pix_pos = [(self.pos[0] * self.game.pix_w) + SPACE // 2,
                                         (self.pos[1] * self.game.pix_h) + SPACE // 2]
-                        self.game.walls.extend(self.game.doors)
+                        '''
+                        self.game.walls.extend(self.game.doors)                       
                         border = pygame.sprite.Sprite(self.game.borders)
                         border.image = pygame.transform.scale(load_image("border2.png"), (self.game.pix_w,
-                                                                                          self.game.pix_h))
+                                                                                         self.game.pix_h))
                         border.rect = border.image.get_rect()
-                        border.rect.x = 12 * self.game.pix_w + SPACE // 2
-                        border.rect.y = 11 * self.game.pix_h + SPACE // 2
+                        border.rect.x = (13 * self.game.pix_w)
+                        border.rect.y = (12 * self.game.pix_h)
+
+                        border = pygame.sprite.Sprite(self.game.borders)
+                        border.image = pygame.transform.scale(load_image("border2.png"), (self.game.pix_w - 2,
+                                                                                         self.game.pix_h - 2))
+                        border.rect = border.image.get_rect()
+                        border.rect.x = (14 * self.game.pix_w)
+                        border.rect.y = (12 * self.game.pix_h)
                         self.game.borders.draw(self.game.fon)
+                        '''
 
     def able_to_move(self, pos, direction):
         if not self.state:
@@ -303,51 +298,25 @@ class Ghost:
     def change_direction(self):
         self.state = choice(["left", "up", "right", "down"])
 
-    def set_target(self):
-        return self.game.pacman.pos
-
-    def get_path_direction(self, target):
-        next_cell = self.find_next_cell_in_path(target)
-        x = next_cell[0] - self.pos[0]
-        y = next_cell[1] - self.pos[1]
-        return self.vector_directions[(x, y)]
-
-    def find_next_cell_in_path(self, target):
-        path = self.bfs([int(self.pos[0]), int(self.pos[1])], [
-                        int(target[0]), int(target[1])])
-        return path[1]
-
-    def bfs(self, start, target):
-        grid = [[0 for _ in range(28)] for _ in range(30)]
-        for cell in self.game.walls:
-            if cell[0] < 28 and cell[1] < 30:
-                grid[int(cell[1])][int(cell[0])] = 1
-        queue = [start]
-        path = []
-        visited = []
-        while queue:
-            current = queue[0]
-            queue.remove(queue[0])
-            visited.append(current)
-            if current == target:
-                break
-            else:
-                neighbours = [[0, -1], [1, 0], [0, 1], [-1, 0]]
-                for neighbour in neighbours:
-                    if len(grid[0]) > neighbour[0] + current[0] >= 0:
-                        if len(grid) > neighbour[1] + current[1] >= 0:
-                            next_cell = [neighbour[0] + current[0], neighbour[1] + current[1]]
-                            if next_cell not in visited:
-                                if grid[next_cell[1]][next_cell[0]] != 1:
-                                    queue.append(next_cell)
-                                    path.append({"Current": current, "Next": next_cell})
-        shortest = [target]
-        while target != start:
-            for step in path:
-                if step["Next"] == target:
-                    target = step["Current"]
-                    shortest.insert(0, step["Current"])
-        return shortest
+    def game_over(self):
+        self.game.cur.execute(f'''
+                            INSERT INTO score(score) VALUES({self.game.pacman.current_score}) 
+                            ''')  # записываем в бд
+        self.game.con.commit()
+        self.game.pacman.pos = self.game.player_start_pos
+        self.game.pacman.pix_pos = [(self.game.pacman.pos[0] * self.game.pix_w) + SPACE // 2,
+                                    (self.game.pacman.pos[1] * self.game.pix_h) + SPACE // 2]
+        for ghost in self.game.ghosts:
+            ghost.pos = self.game.ghost_poses[ghost.num - 1]
+            ghost.pix_pos = [(ghost.pos[0] * self.game.pix_w) + SPACE // 2,
+                             (ghost.pos[1] * self.game.pix_h) + SPACE // 2]
+            ghost.stage = 1
+            ghost.state = None
+        self.game.pacman.current_score = 0
+        self.game.score = 0
+        self.game.pacman.state = None
+        self.game.state = "game_over"
+        self.game.start_time = 100000000000000000
 
 
 class Game:
@@ -360,16 +329,31 @@ class Game:
         self.start_time = None
         self.running = True
         self.state = "start"
+        self.before_state = "start"
+        self.exception = False
         self.player_start_pos = None
         self.ghost_poses = []
         self.score = 0
-        self.high_score = 0
+        self.con = sqlite3.connect("score.sqlite3")
+        self.cur = self.con.cursor()
+        self.cur.execute("""
+                                DELETE FROM score
+                                """)
+        self.con.commit()
+        self.cur.execute("""
+                                 CREATE TABLE IF NOT EXISTS score
+                                 ([score] INTEGER)
+                                 """)
+        self.con.commit()
+        # self.high_score = 0
         self.pix_w, self.pix_h = FON_WIDTH // COLS, FON_HEIGHT // ROWS
         self.walls = []
         self.doors = []
         self.coins = []
+        self.taken_coins = []
         self.borders = pygame.sprite.Group()
         self.fon = pygame.transform.scale(load_image("background.png"), (FON_WIDTH, FON_HEIGHT))
+        self.game_over_fon = load_image("game_over.png")
         with open(file="walls.txt", mode='r') as f:
             for y, string in enumerate(f):
                 for x, value in enumerate(string):
@@ -390,7 +374,6 @@ class Game:
         self.make_ghosts()
         for cords in self.walls:
             x, y = cords
-            # pygame.draw.rect(fon, (255, 255, 255), (x * self.pix_w, y * self.pix_h, self.pix_w, self.pix_h), 2)
             border = pygame.sprite.Sprite(self.borders)
             border.image = pygame.transform.scale(load_image("border.png"), (self.pix_w, self.pix_h))
             border.rect = border.image.get_rect()
@@ -403,8 +386,8 @@ class Game:
             if self.state == "start":
                 self.start_screen()
             elif self.state == "game":
-                if not self.start_time:
-                    self.start_time = pygame.time.get_ticks() // 1000
+                if not self.start_time or self.start_time == 100000000000000000:
+                    self.start_time = int(time())
                 self.game_screen_events()
                 self.game_screen_update()
                 self.game_screen_draw()
@@ -416,6 +399,8 @@ class Game:
                 self.pause_screen()
             elif self.state == "settings":
                 self.settings_screen()
+            elif self.state == "game_over":
+                self.game_over_screen()
             self.clock.tick(FPS)
         terminate()
 
@@ -487,16 +472,44 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     cords = event.pos
                     if is_in(cords, start_sprite.rect):
+                        self.pacman.current_score = 0
+                        self.score = 0
+                        self.cur.execute("""
+                                                        DELETE FROM score
+                                                        """)
+                        self.con.commit()
+                        self.cur.execute("""
+                                                         CREATE TABLE IF NOT EXISTS score
+                                                         ([score] INTEGER)
+                                                         """)
+                        self.con.commit()
+                        self.before_state = self.state
+                        self.exception = False
                         self.state = "game"
                         return
                     elif is_in(cords, controls_sprite.rect):
+                        self.before_state = self.state
                         self.state = "controls"
                         return
                     elif is_in(cords, credit_sprite.rect):
+                        self.before_state = self.state
                         self.state = "credit"
                         return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
+                        self.pacman.current_score = 0
+                        self.score = 0
+                        self.cur.execute("""
+                                                                                DELETE FROM score
+                                                                                """)
+                        self.con.commit()
+                        self.cur.execute("""
+                                                                                 CREATE TABLE IF NOT EXISTS score
+                                                                                 ([score] INTEGER)
+                                                                                 """)
+                        self.con.commit()
+                        self.before_state = self.state
+                        self.exception = False
                         self.state = "game"
                         return
                 pygame.display.flip()
@@ -507,6 +520,7 @@ class Game:
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    self.before_state = self.state
                     self.state = "pause"
                 elif event.key == pygame.K_LEFT:
                     self.pacman.change_direction("left")
@@ -516,8 +530,6 @@ class Game:
                     self.pacman.change_direction("right")
                 elif event.key == pygame.K_DOWN:
                     self.pacman.change_direction("down")
-                elif event.key == pygame.K_SPACE:
-                    self.pacman.stop()
 
     def game_screen_update(self):
         self.pacman.update()
@@ -526,17 +538,19 @@ class Game:
 
     def game_screen_draw(self):
         self.clear_screen()
+        '''
         for i in range(COLS):
             pygame.draw.line(self.fon, (100, 100, 100), (i * self.pix_w, 0),
                              (i * self.pix_w, HEIGHT))
         for i in range(ROWS):
             pygame.draw.line(self.fon, (100, 100, 100), (0, i * self.pix_h),
                              (WIDTH, i * self.pix_h))
+        '''
 
         font = pygame.font.Font(None, 25)
         self.screen.blit(self.fon, (SPACE / 2, SPACE / 2))
         self.screen.blit(font.render(f"SCORE: {self.pacman.current_score}", True, pygame.Color('white')), (25, 8))
-        self.screen.blit(font.render(f"HIGH SCORE: {self.high_score}", True, pygame.Color('white')), (325, 8))
+        # self.screen.blit(font.render(f"HIGH SCORE: {self.high_score}", True, pygame.Color('white')), (325, 8))
 
         self.coin_draw()
         self.pacman.draw()
@@ -574,10 +588,12 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     cords = event.pos
                     if is_in(cords, back_btn_sprite.rect):
+                        self.before_state = self.state
                         self.state = "start"
                         return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        self.before_state = self.state
                         self.state = "start"
                         return
 
@@ -605,10 +621,12 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     cords = event.pos
                     if is_in(cords, back_btn_sprite.rect):
+                        self.before_state = self.state
                         self.state = "start"
                         return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        self.before_state = self.state
                         self.state = "start"
                         return
 
@@ -654,17 +672,50 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     cords = event.pos
                     if is_in(cords, back_btn_sprite.rect):
-                        self.state = "game"
+                        if self.before_state == "game_over":
+                            state = "game_over"
+                        else:
+                            state = "game"
+                        self.before_state = self.state
+                        self.state = state
                         return
                     elif is_in(cords, menu_sprite.rect):
+                        self.pacman.current_score = 0
+                        self.score = 0
+                        self.cur.execute(f'''
+                                                   INSERT INTO score(score) VALUES({self.pacman.current_score}) 
+                                                   ''')  # записываем в бд
+                        self.con.commit()
+                        self.pacman.pos = self.player_start_pos
+                        self.pacman.pix_pos = [(self.pacman.pos[0] * self.pix_w) + SPACE // 2,
+                                               (self.pacman.pos[1] * self.pix_h) + SPACE // 2]
+                        for ghost in self.ghosts:
+                            ghost.pos = self.ghost_poses[ghost.num - 1]
+                            ghost.pix_pos = [(ghost.pos[0] * self.pix_w) + SPACE // 2,
+                                             (ghost.pos[1] * self.pix_h) + SPACE // 2]
+                            ghost.stage = 1
+                            ghost.state = None
+                        self.start_time = 100000000000000000
+                        self.coins.extend(self.taken_coins)
+                        self.taken_coins.clear()
+                        self.pacman.state = None
+                        self.before_state = self.state
                         self.state = "start"
                         return
                     elif is_in(cords, settings_sprite.rect):
+                        if self.before_state == "game_over":
+                            self.exception = True
+                        self.before_state = self.state
                         self.state = "settings"
                         return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        self.state = "game"
+                        if self.before_state == "game_over" or self.exception:
+                            state = "game_over"
+                        else:
+                            state = "game"
+                        self.before_state = self.state
+                        self.state = state
                         return
 
     def settings_screen(self):
@@ -691,10 +742,27 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     cords = event.pos
                     if is_in(cords, back_btn_sprite.rect):
+                        self.before_state = self.state
                         self.state = "pause"
                         return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        self.before_state = self.state
+                        self.state = "pause"
+                        return
+
+    def game_over_screen(self):
+        self.clear_screen()
+
+        self.screen.blit(self.game_over_fon, (0, 0))
+        pygame.display.flip()
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    terminate()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.before_state = self.state
                         self.state = "pause"
                         return
 
